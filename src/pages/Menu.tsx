@@ -14,8 +14,8 @@ export default function Menu() {
       const { data: r, error } = await supabase.from('restaurants').select('*').eq('slug', slug).maybeSingle();
       if (error || !r) { setErr('Restaurante não encontrado.'); return; }
       const [c, p, a] = await Promise.all([
-        supabase.from('categories').select('*').eq('restaurant_id', r.id).order('sort_order'),
-        supabase.from('products').select('*, product_photos(*), product_dimensions(*), product_models(*)').eq('restaurant_id', r.id).order('sort_order'),
+        supabase.from('categories').select('*').eq('restaurant_id', r.id).eq('is_active', true).order('sort_order'),
+        supabase.from('products').select('*, product_photos(*), product_dimensions(*), product_models(*)').eq('restaurant_id', r.id).eq('is_published', true).order('sort_order'),
         supabase.from('addons').select('*').eq('restaurant_id', r.id)]);
       setData({ r, cats: c.data || [], prods: p.data || [], addons: a.data || [] });
       supabase.rpc('track_event', { p_restaurant: r.id, p_product: null, p_event: 'menu_view' });
