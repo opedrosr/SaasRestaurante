@@ -128,9 +128,20 @@ function Form({ rest, cats, init, say, done }: any) {
       const dim = (kind: string, w: any, d: any, h: any) => n(w) > 0 && n(d) > 0 && n(h) > 0 &&
         supabase.from('product_dimensions').upsert({ product_id: p.id, restaurant_id: rest.id, kind, width_cm: n(w), depth_cm: n(d), height_cm: n(h) });
       for (const x of [dim('food', f.fw, f.fd, f.fh), dim('packaging', f.pw, f.pd, f.ph)]) if (x) { const r: any = await x; if (r.error) throw r.error; }
-      for (const [i, file] of img.entries()) { const path = `${rest.id}/${p.id}/${Date.now()}-${file.name.replace(/[^\w.]/g, '_')}`;
-        const up = await supabase.storage.from('photos').upload(path, file); if (up.error) throw up.error;
-        await supabase.from('product_photos').insert({ product_id: p.id, restaurant_id: rest.id, storage_path: path, is_primary: i === 0 && !f.id }); }
+
+      // CORREÇÃO: a foto só vira principal se o produto ainda não tiver uma principal.
+      if (img.length > 0) {
+        const { count } = await supabase.from('product_photos').select('id', { count: 'exact', head: true }).eq('product_id', p.id).eq('is_primary', true);
+        let hasPrimary = (count ?? 0) > 0;
+        for (const file of img) {
+          const path = `${rest.id}/${p.id}/${Date.now()}-${file.name.replace(/[^\w.]/g, '_')}`;
+          const up = await supabase.storage.from('photos').upload(path, file); if (up.error) throw up.error;
+          const ins = await supabase.from('product_photos').insert({ product_id: p.id, restaurant_id: rest.id, storage_path: path, is_primary: !hasPrimary });
+          if (ins.error) throw ins.error;
+          hasPrimary = true;
+        }
+      }
+
       if (glb) { const ts = Date.now(); const gp = `${rest.id}/${p.id}/${ts}.${glb.name.split('.').pop()!.toLowerCase()}`;
         const u1 = await supabase.storage.from('models').upload(gp, glb); if (u1.error) throw u1.error;
         let up2: string | null = null; if (usdz) { up2 = `${rest.id}/${p.id}/${ts}.usdz`; const u2 = await supabase.storage.from('models').upload(up2, usdz); if (u2.error) throw u2.error; }
@@ -149,7 +160,7 @@ function Form({ rest, cats, init, say, done }: any) {
     <div className="flex gap-4 text-sm">{[['is_available', 'Disponível'], ['is_published', 'Publicado'], ['is_featured', 'Destaque']].map(([k, t]) => <label key={k}><input type="checkbox" checked={f[k]} onChange={e => set(k, e.target.checked)} /> {t}</label>)}</div>
     <fieldset className="border p-3"><legend className="text-sm font-medium">Dimensões do alimento (cm)</legend><div className="grid grid-cols-3 gap-2">{I('fw', 'Largura')}{I('fd', 'Profundidade')}{I('fh', 'Altura')}</div></fieldset>
     <fieldset className="border p-3"><legend className="text-sm font-medium">Embalagem (cm) — separada do alimento</legend><div className="grid grid-cols-3 gap-2">{I('pw', 'Comprimento')}{I('pd', 'Largura')}{I('ph', 'Altura')}</div></fieldset>
-    <L t="Fotografias (a primeira vira a principal; máx. 5 MB cada)"><input type="file" accept="image/*" multiple onChange={e => setImg(Array.from(e.target.files || []))} /></L>
+    <L t="Fotografias (a primeira vira a principal se o produto ainda não tiver; máx. 5 MB cada)"><input type="file" accept="image/*" multiple onChange={e => setImg(Array.from(e.target.files || []))} /></L>
     {img.length > 0 && <div className="flex gap-2">{img.map(i => <img key={i.name} src={URL.createObjectURL(i)} className="h-16 w-16 object-cover" alt="" />)}</div>}
     <fieldset className="border p-3 space-y-2"><legend className="text-sm font-medium">Modelo 3D</legend>
       {f.model && !glb && <p className="text-xs text-neutral-600">Modelo atual: válido. Envie outro arquivo para substituir (os dados do produto são mantidos).</p>}
