@@ -1,0 +1,7 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body { @apply bg-coal text-bone font-body antialiased; }
+.btn { @apply px-5 py-3 bg-ember text-bone font-display uppercase tracking-wider text-sm transition active:scale-95 hover:brightness-110 disabled:opacity-40; }
+.btn-ghost { @apply px-4 py-2 border border-bone/30 text-sm hover:border-gold transition; }
+.field { @apply w-full bg-white border border-neutral-300 px-3 py-2 text-neutral-900 text-sm; }
+@keyframes rise { from { transform: translateY(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+.rise { animation: rise .25s ease-out; }
