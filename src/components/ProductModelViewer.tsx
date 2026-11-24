@@ -9,10 +9,11 @@ interface Props {
   physicalCm: { width: number; depth: number; height: number };
   onARClick?: () => void;
   onCalibrated?: (c: Calibration) => void;
+  onError?: () => void;
 }
 
 /** O web component só é importado quando o visualizador é montado (lazy). */
-export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physicalCm, onARClick, onCalibrated }: Props) {
+export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physicalCm, onARClick, onCalibrated, onError }: Props) {
   const ref = useRef<any>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState(false);
@@ -30,7 +31,7 @@ export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physica
       el.scale = `${c.factor} ${c.factor} ${c.factor}`;
       setCalib(c); onCalibrated?.(c);
     };
-    const onErr = () => setError(true);
+    const onErr = () => { setError(true); onError?.(); };
     el.addEventListener('load', onLoad); el.addEventListener('error', onErr);
     return () => { el.removeEventListener('load', onLoad); el.removeEventListener('error', onErr); };
   }, [ready, glbUrl, physicalCm.width, physicalCm.depth, physicalCm.height]);

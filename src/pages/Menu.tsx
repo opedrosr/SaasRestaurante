@@ -19,7 +19,7 @@ export default function Menu() {
         supabase.from('addons').select('*').eq('restaurant_id', r.id)]);
       setData({ r, cats: c.data || [], prods: p.data || [], addons: a.data || [] });
       supabase.rpc('track_event', { p_restaurant: r.id, p_product: null, p_event: 'menu_view' });
-    })();
+    })().catch(() => setErr('Não foi possível carregar o cardápio. Verifique sua conexão e tente novamente.'));
   }, [slug]);
 
   if (err) return <p className="p-8">{err}</p>;
