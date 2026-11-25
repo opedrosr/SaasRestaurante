@@ -1,8 +1,14 @@
 import { useState, lazy, Suspense } from 'react';
 import { brl, pub } from '../lib/supabase';
 import { useCart } from '../lib/cart';
-import { placeholderFor } from '../lib/placeholders';
+import { photoOf } from '../lib/product';
 const Viewer = lazy(() => import('./ProductModelViewer'));
+
+const Switch = ({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) => (
+  <button role="switch" aria-checked={on} aria-label={label} onClick={onClick} className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-gradient-to-b from-brand-light to-brand-dark' : 'bg-white/20'}`}>
+    <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-6' : 'left-1'}`} />
+  </button>
+);
 
 export default function ProductSheet({ p, addons, onClose, track }: { p: any; addons: any[]; onClose: () => void; track: (e: string) => void }) {
   const { add, setOpen } = useCart();
@@ -11,9 +17,12 @@ export default function ProductSheet({ p, addons, onClose, track }: { p: any; ad
   const model = (p.product_models || []).find((m: any) => m.is_active && m.status === 'valid' && m.glb_path);
   const food = (p.product_dimensions || []).find((d: any) => d.kind === 'food');
   const pack = (p.product_dimensions || []).find((d: any) => d.kind === 'packaging');
-  const photo = (p.product_photos || []).sort((a: any, b: any) => Number(b.is_primary) - Number(a.is_primary))[0];
+  const img = photoOf(p);
   const opts = addons.filter(a => !a.product_id || a.product_id === p.id);
   const unit = p.price_cents + opts.reduce((s, a) => s + a.price_cents * (sel[a.id] || 0), 0);
+  const can3d = Boolean(model && food);
+  const round = 'grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-lg';
+  const mini = 'grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-white/10';
 
   const addToCart = () => {
     add({ name: p.name, qty, unitCents: p.price_cents, notes: notes || undefined,
@@ -22,47 +31,70 @@ export default function ProductSheet({ p, addons, onClose, track }: { p: any; ad
   };
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/70" onClick={onClose}>
-      <div className="rise absolute inset-x-0 bottom-0 top-8 md:inset-y-6 md:mx-auto md:max-w-5xl bg-coal overflow-y-auto md:grid md:grid-cols-2" onClick={e => e.stopPropagation()}>
-        <div className="md:sticky md:top-0 md:h-full bg-ash">
-          {show3d && model && food ? (
-            <Suspense fallback={<div className="aspect-square animate-pulse" />}>
-              <Viewer glbUrl={pub('models', model.glb_path)} usdzUrl={model.usdz_path ? pub('models', model.usdz_path) : null}
-                posterUrl={photo ? pub('photos', photo.storage_path) : undefined}
-                physicalCm={{ width: Number(food.width_cm), depth: Number(food.depth_cm), height: Number(food.height_cm) }}
-                onARClick={() => track('ar_click')} />
-            </Suspense>
-          ) : <img src={photo ? pub('photos', photo.storage_path) : placeholderFor(p.name)} alt={p.name} className="w-full aspect-square object-cover" />}
-          <div className="p-3">
-            {model && food
-              ? !show3d && <button className="btn w-full" onClick={() => { setShow3d(true); track('model_view'); }}>Explorar em 3D</button>
-              : <p className="text-xs text-bone/50">Modelo 3D ainda não disponível para este produto.</p>}
+    <div className="fixed inset-0 z-40 overflow-y-auto text-white" onClick={onClose}>
+      <div className="fixed inset-0" style={{ background: `#0b0908 url(${img}) center/cover`, filter: 'blur(40px) brightness(.45) saturate(1.3)', transform: 'scale(1.3)' }} aria-hidden />
+      <div className="relative grid min-h-full place-items-center px-3 py-6">
+        <div className="rise relative w-full max-w-[430px] overflow-hidden rounded-[40px] border border-white/15 bg-[#14100d]/90 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="relative">
+            {show3d && can3d ? (
+              <div className="px-3 pt-16">
+                <Suspense fallback={<div className="aspect-square animate-pulse rounded-3xl bg-white/10" />}>
+                  <Viewer glbUrl={pub('models', model.glb_path)} usdzUrl={model.usdz_path ? pub('models', model.usdz_path) : null} posterUrl={img}
+                    physicalCm={{ width: Number(food.width_cm), depth: Number(food.depth_cm), height: Number(food.height_cm) }} onARClick={() => track('ar_click')} />
+                </Suspense>
+              </div>
+            ) : (
+              <div className="relative aspect-[4/3] w-full">
+                <img src={img} alt={p.name} className="h-full w-full object-cover" />
+                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#14100d] to-transparent" />
+              </div>
+            )}
+            <button onClick={onClose} aria-label="Voltar" className={round + ' absolute left-4 top-4 bg-black/45 text-2xl'}>‹</button>
+            {can3d && <button className="absolute right-4 top-4 rounded-full border border-white/15 bg-black/45 px-3.5 py-2 text-xs font-semibold" onClick={() => { setShow3d(s => !s); if (!show3d) track('model_view'); }}>{show3d ? 'Ver foto' : 'Ver em 3D · AR'}</button>}
           </div>
-        </div>
-        <div className="p-6 space-y-5">
-          <button onClick={onClose} className="btn-ghost float-right">Fechar</button>
-          <h2 className="font-display text-4xl uppercase">{p.name}</h2>
-          <p className="text-bone/70">{p.description}</p>
-          {p.ingredients?.length > 0 && <p className="text-sm"><span className="text-gold">Ingredientes:</span> {p.ingredients.join(', ')}</p>}
-          <dl className="text-sm text-bone/70 grid grid-cols-2 gap-1">
-            {p.weight_g && <><dt>Peso aprox.</dt><dd>{p.weight_g} g</dd></>}
-            {food && <><dt>Lanche (L×P×A)</dt><dd>{food.width_cm}×{food.depth_cm}×{food.height_cm} cm</dd></>}
-            {pack && <><dt>Embalagem</dt><dd>{pack.width_cm}×{pack.depth_cm}×{pack.height_cm} cm</dd></>}
-          </dl>
-          {opts.length > 0 && <div><h3 className="text-gold text-sm mb-2">Adicionais</h3>
-            {opts.map(a => (
-              <div key={a.id} className="flex items-center justify-between py-2 border-b border-bone/10">
-                <span>{a.name} <span className="text-bone/50 text-sm">+{brl(a.price_cents)}</span></span>
-                <span className="flex items-center gap-3">
-                  <button className="btn-ghost" onClick={() => setSel(s => ({ ...s, [a.id]: Math.max(0, (s[a.id] || 0) - 1) }))}>−</button>
-                  <b className="w-4 text-center">{sel[a.id] || 0}</b>
-                  <button className="btn-ghost" onClick={() => setSel(s => ({ ...s, [a.id]: Math.min(a.max_qty, (s[a.id] || 0) + 1) }))}>+</button>
-                </span>
-              </div>))}</div>}
-          <textarea className="field text-neutral-900" placeholder="Observações (ex.: sem cebola)" value={notes} onChange={e => setNotes(e.target.value)} />
-          <div className="flex items-center gap-3">
-            <button className="btn-ghost" onClick={() => setQty(Math.max(1, qty - 1))}>−</button><b>{qty}</b><button className="btn-ghost" onClick={() => setQty(qty + 1)}>+</button>
-            <button className="btn flex-1" disabled={!p.is_available} onClick={addToCart}>{p.is_available ? `Adicionar ${brl(unit * qty)}` : 'Indisponível'}</button>
+
+          <div className="relative -mt-8 px-4 pb-4">
+            <div className="rounded-[26px] border border-white/10 bg-white/[.07] p-4">
+              <span className="inline-block rounded-full bg-red-600 px-2.5 py-0.5 text-[11px] font-bold">{p.is_available ? (can3d ? '3D · AR' : 'Disponível') : 'Indisponível'}</span>
+              <div className="mt-2 flex items-start justify-between gap-3">
+                <h2 className="text-2xl font-bold leading-tight">{p.name}</h2>
+                <b className="shrink-0 text-xl text-brand">{brl(p.price_cents)}</b>
+              </div>
+              <p className="mt-2 text-sm text-white/65">{p.description}</p>
+              {p.ingredients?.length > 0 && <p className="mt-2 text-xs text-white/55"><b className="text-white/80">Ingredientes:</b> {p.ingredients.join(', ')}</p>}
+              <p className="mt-1 text-xs text-white/55">
+                {[p.weight_g && `${p.weight_g} g`, food && `${food.width_cm}×${food.depth_cm}×${food.height_cm} cm`, pack && `embalagem ${pack.width_cm}×${pack.depth_cm}×${pack.height_cm} cm`].filter(Boolean).join(' · ')}
+              </p>
+
+              {opts.length > 0 && <div className="mt-4">
+                <h3 className="font-semibold">Personalize</h3>
+                {opts.map(a => {
+                  const n = sel[a.id] || 0;
+                  return (
+                    <div key={a.id} className="flex items-center justify-between gap-3 border-b border-white/10 py-2.5 text-sm">
+                      <span>{a.name} <span className="text-white/50">+{brl(a.price_cents)}</span></span>
+                      <span className="flex items-center gap-3">
+                        {n > 0 && a.max_qty > 1 && <span className="flex items-center gap-2">
+                          <button className={mini} onClick={() => setSel(s => ({ ...s, [a.id]: Math.max(1, n - 1) }))}>−</button>
+                          <b className="w-3 text-center">{n}</b>
+                          <button className={mini} onClick={() => setSel(s => ({ ...s, [a.id]: Math.min(a.max_qty, n + 1) }))}>+</button>
+                        </span>}
+                        <Switch on={n > 0} label={a.name} onClick={() => setSel(s => ({ ...s, [a.id]: n > 0 ? 0 : 1 }))} />
+                      </span>
+                    </div>);
+                })}</div>}
+
+              <textarea className="field-glass mt-4" rows={2} placeholder="Observações (ex.: sem cebola)" value={notes} onChange={e => setNotes(e.target.value)} />
+            </div>
+
+            <div className="mt-3 flex items-center gap-3 rounded-full border border-white/10 bg-white/[.07] p-2">
+              <button className={round} onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Menos">−</button>
+              <b className="w-4 text-center">{qty}</b>
+              <button className={round} onClick={() => setQty(qty + 1)} aria-label="Mais">+</button>
+              <button className="btn flex-1 !justify-between !px-5" disabled={!p.is_available} onClick={addToCart}>
+                <span>{p.is_available ? 'Adicionar ao pedido' : 'Indisponível'}</span><span>{brl(unit * qty)}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
