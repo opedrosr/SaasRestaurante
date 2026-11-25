@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { supabase, configured, brl, pub } from '../lib/supabase';
 import ProductSheet from '../components/ProductSheet';
 import CartDrawer from '../components/CartDrawer';
+import { placeholderFor } from '../lib/placeholders';
 
 export default function Menu() {
   const { slug } = useParams();
@@ -35,12 +36,12 @@ export default function Menu() {
         <div className="flex-1"><h3 className="font-display text-xl uppercase">{p.name}</h3>
           <p className="text-sm text-bone/60 line-clamp-2">{p.description}</p>
           <p className="mt-1 text-gold">{brl(p.price_cents)} {has3d(p) && <span className="ml-2 text-xs border border-gold px-1.5 py-0.5">3D · AR</span>}{!p.is_available && <span className="ml-2 text-xs text-bone/50">Indisponível</span>}</p></div>
-        {ph ? <img loading="lazy" src={pub('photos', ph.storage_path)} alt="" className="w-24 h-24 object-cover" /> : <div className="w-24 h-24 bg-ash" />}
+        <img loading="lazy" src={ph ? pub('photos', ph.storage_path) : placeholderFor(p.name)} alt="" className="w-24 h-24 object-cover" />
       </button>);
   };
   return (
     <main className="max-w-3xl mx-auto pb-28">
-      <header className="px-5 pt-10 pb-8" style={r.hero_url ? { background: `linear-gradient(#141312cc,#141312), url(${r.hero_url}) center/cover` } : undefined}>
+      <header className="px-5 pt-10 pb-8" style={{ background: `linear-gradient(#141312cc,#141312), url(${r.hero_url || '/placeholders/hero.svg'}) center/cover` }}>
         {r.logo_url && <img src={r.logo_url} alt="" className="h-14 mb-4" />}
         <h1 className="font-display text-6xl uppercase leading-none">{r.name}</h1>
         <p className="mt-3 text-gold">{r.tagline}</p>

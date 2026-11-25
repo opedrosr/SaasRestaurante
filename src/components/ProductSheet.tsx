@@ -1,6 +1,7 @@
 import { useState, lazy, Suspense } from 'react';
 import { brl, pub } from '../lib/supabase';
 import { useCart } from '../lib/cart';
+import { placeholderFor } from '../lib/placeholders';
 const Viewer = lazy(() => import('./ProductModelViewer'));
 
 export default function ProductSheet({ p, addons, onClose, track }: { p: any; addons: any[]; onClose: () => void; track: (e: string) => void }) {
@@ -31,8 +32,7 @@ export default function ProductSheet({ p, addons, onClose, track }: { p: any; ad
                 physicalCm={{ width: Number(food.width_cm), depth: Number(food.depth_cm), height: Number(food.height_cm) }}
                 onARClick={() => track('ar_click')} />
             </Suspense>
-          ) : photo ? <img src={pub('photos', photo.storage_path)} alt={p.name} className="w-full aspect-square object-cover" />
-            : <div className="aspect-square grid place-items-center font-display text-5xl text-bone/20 uppercase p-6 text-center">{p.name}</div>}
+          ) : <img src={photo ? pub('photos', photo.storage_path) : placeholderFor(p.name)} alt={p.name} className="w-full aspect-square object-cover" />}
           <div className="p-3">
             {model && food
               ? !show3d && <button className="btn w-full" onClick={() => { setShow3d(true); track('model_view'); }}>Explorar em 3D</button>

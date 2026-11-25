@@ -1,6 +1,7 @@
-import { useState, lazy, Suspense } from 'react';
-import { supabase } from '../../lib/supabase';
+import { useEffect, useState, lazy, Suspense } from 'react';
+import { supabase, pub } from '../../lib/supabase';
 import { L, MAX_MODEL, MAX_IMG } from './ui';
+import { validateGlb, bakeScale } from '../../lib/glb';
 const Viewer = lazy(() => import('../../components/ProductModelViewer'));
 
 export function Form({ rest, cats, init, say, done }: any) {
@@ -9,10 +10,23 @@ export function Form({ rest, cats, init, say, done }: any) {
   const set = (k: string, v: any) => setF((p: any) => ({ ...p, [k]: v }));
   const n = (v: any) => Number(String(v).replace(',', '.'));
   const hasDims = n(f.fw) > 0 && n(f.fd) > 0 && n(f.fh) > 0;
+  const [photos, setPhotos] = useState<any[]>([]);
+  const loadPhotos = async () => { if (!f.id) return; const { data } = await supabase.from('product_photos').select('*').eq('product_id', f.id).order('sort_order'); setPhotos(data || []); };
+  useEffect(() => { loadPhotos(); }, []);
+  const makePrimary = async (id: string) => {
+    await supabase.from('product_photos').update({ is_primary: false }).eq('product_id', f.id);
+    await supabase.from('product_photos').update({ is_primary: true }).eq('id', id); loadPhotos(); };
+  const removePhoto = async (ph: any) => {
+    if (!confirm('Excluir esta foto?')) return;
+    await supabase.storage.from('photos').remove([ph.storage_path]);
+    await supabase.from('product_photos').delete().eq('id', ph.id);
+    if (ph.is_primary) { const next = photos.find(x => x.id !== ph.id); if (next) await supabase.from('product_photos').update({ is_primary: true }).eq('id', next.id); }
+    loadPhotos(); };
 
-  const pickGlb = (file?: File) => { if (!file) return; setLoaded(null); setCalib(null);
-    if (!/\.(glb|gltf)$/i.test(file.name)) return say('Formato inválido: envie GLB ou GLTF.');
-    if (file.size > MAX_MODEL) return say('Modelo acima de 15 MB. Otimize o arquivo (Draco/meshopt).');
+  const pickGlb = async (file?: File) => { if (!file) return; setLoaded(null); setCalib(null);
+    if (!/\.glb$/i.test(file.name)) return say('Envie um arquivo GLB. Se o seu modelo é GLTF com arquivos separados, converta para GLB.');
+    if (file.size > MAX_MODEL) return say('Modelo acima de 15 MB. Otimize o arquivo (veja o README).');
+    try { validateGlb(await file.arrayBuffer()); } catch (e: any) { setGlb(null); return say(e.message); }
     setGlb(file); setGlbUrl(URL.createObjectURL(file)); say(''); };
 
   const save = async () => {
@@ -44,11 +58,13 @@ export function Form({ rest, cats, init, say, done }: any) {
         }
       }
 
-      if (glb) { const ts = Date.now(); const gp = `${rest.id}/${p.id}/${ts}.${glb.name.split('.').pop()!.toLowerCase()}`;
-        const u1 = await supabase.storage.from('models').upload(gp, glb); if (u1.error) throw u1.error;
+      if (glb) { const ts = Date.now(); const gp = `${rest.id}/${p.id}/${ts}.glb`;
+        const original = await glb.arrayBuffer(); const factor = calib?.factor ?? 1;
+        const finalBuf = Math.abs(factor - 1) > 0.001 ? bakeScale(original, factor) : original; // escala real gravada no arquivo
+        const u1 = await supabase.storage.from('models').upload(gp, new Blob([finalBuf], { type: 'model/gltf-binary' }), { contentType: 'model/gltf-binary' }); if (u1.error) throw u1.error;
         let up2: string | null = null; if (usdz) { up2 = `${rest.id}/${p.id}/${ts}.usdz`; const u2 = await supabase.storage.from('models').upload(up2, usdz); if (u2.error) throw u2.error; }
         await supabase.from('product_models').update({ is_active: false }).eq('product_id', p.id);
-        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: glb.size, scale_factor: calib?.factor ?? 1, status: 'valid' });
+        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: finalBuf.byteLength, scale_factor: factor, measured_width_m: calib?.measuredM.width ?? null, measured_depth_m: calib?.measuredM.depth ?? null, measured_height_m: calib?.measuredM.height ?? null, status: 'valid' });
         if (ins.error) throw ins.error; }
       say('Produto salvo.'); done();
     } catch (e: any) { say('Erro ao salvar: ' + (e.message || e)); } finally { setBusy(false); }
@@ -63,10 +79,14 @@ export function Form({ rest, cats, init, say, done }: any) {
     <fieldset className="border p-3"><legend className="text-sm font-medium">Dimensões do alimento (cm)</legend><div className="grid grid-cols-3 gap-2">{I('fw', 'Largura')}{I('fd', 'Profundidade')}{I('fh', 'Altura')}</div></fieldset>
     <fieldset className="border p-3"><legend className="text-sm font-medium">Embalagem (cm) — separada do alimento</legend><div className="grid grid-cols-3 gap-2">{I('pw', 'Comprimento')}{I('pd', 'Largura')}{I('ph', 'Altura')}</div></fieldset>
     <L t="Fotografias (a primeira vira a principal se o produto ainda não tiver; máx. 5 MB cada)"><input type="file" accept="image/*" multiple onChange={e => setImg(Array.from(e.target.files || []))} /></L>
+    {photos.length > 0 && <div className="flex flex-wrap gap-3">{photos.map(ph => <div key={ph.id} className="w-28 text-xs">
+      <img src={pub('photos', ph.storage_path)} className="h-24 w-28 object-cover border" alt="" />
+      {ph.is_primary ? <b className="block mt-1">Principal</b> : <button className="block mt-1 underline" onClick={() => makePrimary(ph.id)}>Tornar principal</button>}
+      <button className="text-red-600 underline" onClick={() => removePhoto(ph)}>Excluir</button></div>)}</div>}
     {img.length > 0 && <div className="flex gap-2">{img.map(i => <img key={i.name} src={URL.createObjectURL(i)} className="h-16 w-16 object-cover" alt="" />)}</div>}
     <fieldset className="border p-3 space-y-2"><legend className="text-sm font-medium">Modelo 3D</legend>
       {f.model && !glb && <p className="text-xs text-neutral-600">Modelo atual: válido. Envie outro arquivo para substituir (os dados do produto são mantidos).</p>}
-      <L t="GLB ou GLTF (máx. 15 MB)"><input type="file" accept=".glb,.gltf" onChange={e => pickGlb(e.target.files?.[0])} /></L>
+      <L t="GLB (máx. 15 MB). A escala real é gravada no arquivo ao salvar."><input type="file" accept=".glb" onChange={e => pickGlb(e.target.files?.[0])} /></L>
       <L t="USDZ para iPhone (opcional, precisa estar em escala real)"><input type="file" accept=".usdz" onChange={e => setUsdz(e.target.files?.[0] || null)} /></L>
       {glb && hasDims && <Suspense fallback={<p>Carregando pré-visualização…</p>}>
         <Viewer glbUrl={glbUrl} physicalCm={{ width: n(f.fw), depth: n(f.fd), height: n(f.fh) }} onCalibrated={c => { setCalib(c); setLoaded(true); }} onError={() => setLoaded(false)} /></Suspense>}
