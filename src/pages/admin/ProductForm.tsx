@@ -32,7 +32,7 @@ export function Form({ rest, cats, init, say, done }: any) {
   const save = async () => {
     if (!f.name.trim() || !(n(f.price) >= 0) || f.price === '') return say('Informe nome e preço.');
     if (glb && !hasDims) return say('Informe as dimensões do alimento para calibrar o modelo.');
-    if (glb && loaded === false) return say('O modelo não carregou. Verifique se o arquivo é um GLB válido.');
+    if (glb && loaded === false) return say('O modelo não carregou. Verifique se o arquivo é um GLB/GLTF válido.');
     if (glb && loaded !== true) return say('O modelo ainda não foi verificado. Aguarde a pré-visualização carregar.');
     if (img.some(i => i.size > MAX_IMG)) return say('Imagem acima de 5 MB.');
     setBusy(true);
@@ -64,7 +64,7 @@ export function Form({ rest, cats, init, say, done }: any) {
         const u1 = await supabase.storage.from('models').upload(gp, new Blob([finalBuf], { type: 'model/gltf-binary' }), { contentType: 'model/gltf-binary' }); if (u1.error) throw u1.error;
         let up2: string | null = null; if (usdz) { up2 = `${rest.id}/${p.id}/${ts}.usdz`; const u2 = await supabase.storage.from('models').upload(up2, usdz); if (u2.error) throw u2.error; }
         await supabase.from('product_models').update({ is_active: false }).eq('product_id', p.id);
-        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: finalBuf.byteLength, scale_factor: factor, measured_width_m: calib?.measuredM?.width ?? null, measured_depth_m: calib?.measuredM?.depth ?? null, measured_height_m: calib?.measuredM?.height ?? null, status: 'valid' });
+        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: finalBuf.byteLength, scale_factor: factor, measured_width_m: calib?.measuredM.width ?? null, measured_depth_m: calib?.measuredM.depth ?? null, measured_height_m: calib?.measuredM.height ?? null, status: 'valid' });
         if (ins.error) throw ins.error; }
       say('Produto salvo.'); done();
     } catch (e: any) { say('Erro ao salvar: ' + (e.message || e)); } finally { setBusy(false); }

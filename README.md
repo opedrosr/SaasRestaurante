@@ -24,3 +24,8 @@
 
 ## Teste de isolamento
 Após qualquer mudança em políticas (RLS), rode `supabase/tests/isolation.sql` no SQL Editor. Deve imprimir "OK: isolamento entre restaurantes verificado".
+
+## Modelos 3D (etapa 3)
+- Aceitamos só **GLB** (autocontido). O painel valida o arquivo, calibra pela dimensão cadastrada e **grava a escala real dentro do GLB** ao salvar, para valer no Android (Scene Viewer) e no iPhone.
+- iPhone: se não houver USDZ, o model-viewer tenta gerar um a partir do GLB; se houver USDZ, ele deve estar em escala real. **Valide em iPhone e Android reais** antes de entregar a um cliente.
+- Otimização (faça antes do upload, no computador): `npx @gltf-transform/cli optimize entrada.glb saida.glb --compress meshopt --texture-compress webp`. Meta: abaixo de 5 MB por modelo.

@@ -18,6 +18,8 @@ export default function Menu() {
         supabase.from('categories').select('*').eq('restaurant_id', r.id).eq('is_active', true).order('sort_order'),
         supabase.from('products').select('*, product_photos(*), product_dimensions(*), product_models(*)').eq('restaurant_id', r.id).eq('is_published', true).order('sort_order'),
         supabase.from('addons').select('*').eq('restaurant_id', r.id)]);
+      const failed = c.error || p.error || a.error;
+      if (failed) { console.error(failed); setErr('Erro ao carregar o cardápio: ' + failed.message); return; }
       setData({ r, cats: c.data || [], prods: p.data || [], addons: a.data || [] });
       supabase.rpc('track_event', { p_restaurant: r.id, p_product: null, p_event: 'menu_view' });
     })().catch(() => setErr('Não foi possível carregar o cardápio. Verifique sua conexão e tente novamente.'));
