@@ -4,6 +4,7 @@ export interface Dims { width: number; depth: number; height: number }
 export interface Calibration {
   factor: number;
   expectedM: Dims;
+  measuredM: Dims;
   warnings: string[];
 }
 
@@ -16,7 +17,7 @@ export function calibrate(measuredM: Dims, physicalCm: Dims): Calibration {
   };
   const warnings: string[] = [];
   if (!(measuredM.width > 0 && measuredM.depth > 0 && measuredM.height > 0))
-    return { factor: 1, expectedM: target, warnings: ['Modelo sem volume mensurável (arquivo inválido?).'] };
+    return { factor: 1, expectedM: target, measuredM, warnings: ['Modelo sem volume mensurável (arquivo inválido?).'] };
 
   const rW = target.width / measuredM.width;
   const rD = target.depth / measuredM.depth;
@@ -30,5 +31,5 @@ export function calibrate(measuredM: Dims, physicalCm: Dims): Calibration {
   if (factor > 500 || factor < 0.002)
     warnings.push('Fator extremo: o arquivo provavelmente usa outra unidade (mm/cm/polegadas).');
 
-  return { factor, expectedM: target, warnings };
+  return { factor, expectedM: target, measuredM, warnings };
 }
