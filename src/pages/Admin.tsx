@@ -12,6 +12,7 @@ const NAV: [string, string][] = [['/admin', 'Painel'], ['/admin/categorias', 'Ca
 export default function Admin() {
   const [user, setUser] = useState<any>(null); const [rest, setRest] = useState<any>(null);
   const [ready, setReady] = useState(false); const [msg, setMsg] = useState('');
+  const say = (m: string) => { setMsg(m); if (m) window.scrollTo({ top: 0, behavior: 'smooth' }); };
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setReady(true); }).catch(() => setReady(true));
     const { data: s } = supabase.auth.onAuthStateChange((_e, ses) => setUser(ses?.user ?? null));
@@ -40,9 +41,9 @@ export default function Admin() {
         {msg && <p className="mb-4 text-sm bg-white border px-3 py-2" role="status">{msg}</p>}
         <Routes>
           <Route index element={<Dash rest={rest} />} />
-          <Route path="categorias" element={<Cats rest={rest} say={setMsg} />} />
-          <Route path="produtos" element={<Prods rest={rest} say={setMsg} />} />
-          <Route path="configuracoes" element={<Conf rest={rest} setRest={setRest} say={setMsg} />} />
+          <Route path="categorias" element={<Cats rest={rest} say={say} />} />
+          <Route path="produtos" element={<Prods rest={rest} say={say} />} />
+          <Route path="configuracoes" element={<Conf rest={rest} setRest={setRest} say={say} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>
