@@ -2,32 +2,42 @@ import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { supabase, configured } from '../lib/supabase';
 import { Login } from './admin/Login';
+import { ResetPassword } from './admin/ResetPassword';
 import { Dash } from './admin/Dashboard';
 import { Cats } from './admin/Categories';
 import { Prods } from './admin/Products';
+import { Addons } from './admin/Addons';
+import { Orders } from './admin/Orders';
+import { Team } from './admin/Team';
 import { Conf } from './admin/Settings';
 
-const NAV: [string, string][] = [['/admin', 'Painel'], ['/admin/categorias', 'Categorias'], ['/admin/produtos', 'Produtos'], ['/admin/configuracoes', 'Configurações e QR']];
+const NAV: [string, string][] = [['/admin', 'Painel'], ['/admin/pedidos', 'Pedidos'], ['/admin/produtos', 'Produtos'], ['/admin/categorias', 'Categorias'],
+  ['/admin/adicionais', 'Adicionais'], ['/admin/equipe', 'Equipe'], ['/admin/configuracoes', 'Configurações e QR']];
 
 export default function Admin() {
   const [user, setUser] = useState<any>(null); const [rest, setRest] = useState<any>(null);
-  const [ready, setReady] = useState(false); const [msg, setMsg] = useState('');
+  const [ready, setReady] = useState(false); const [recovery, setRecovery] = useState(false); const [msg, setMsg] = useState('');
+  const say = (m: string) => { setMsg(m); if (m) window.scrollTo({ top: 0, behavior: 'smooth' }); };
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setReady(true); }).catch(() => setReady(true));
-    const { data: s } = supabase.auth.onAuthStateChange((_e, ses) => setUser(ses?.user ?? null));
+    const { data: s } = supabase.auth.onAuthStateChange((event, ses) => { if (event === 'PASSWORD_RECOVERY') setRecovery(true); setUser(ses?.user ?? null); });
     return () => s.subscription.unsubscribe();
   }, []);
   useEffect(() => {
     if (!user) { setRest(null); return; }
-    supabase.from('restaurant_members').select('restaurants(*)').eq('user_id', user.id).limit(1).maybeSingle()
-      .then(({ data }) => setRest((data as any)?.restaurants ?? null));
+    (async () => {
+      await supabase.rpc('accept_invites');
+      const { data } = await supabase.from('restaurant_members').select('restaurants(*)').eq('user_id', user.id).limit(1).maybeSingle();
+      setRest((data as any)?.restaurants ?? null);
+    })();
   }, [user]);
 
   const base = 'min-h-screen bg-neutral-100 text-neutral-900 font-body';
   if (!configured) return <div className={base + ' p-8'}>Backend não configurado. Preencha o .env.</div>;
   if (!ready) return <div className={base + ' p-8'}>Carregando…</div>;
+  if (recovery && user) return <ResetPassword className={base} done={() => setRecovery(false)} />;
   if (!user) return <Login className={base} />;
-  if (!rest) return <div className={base + ' p-8'}>Seu usuário não está vinculado a nenhum restaurante. Peça ao responsável para vincular sua conta.</div>;
+  if (!rest) return <div className={base + ' p-8'}>Seu usuário não está vinculado a nenhum restaurante. Peça um convite ao dono ou ao responsável. <button className="underline ml-2" onClick={() => supabase.auth.signOut()}>Sair</button></div>;
   return (
     <div className={base + ' md:flex'}>
       <aside className="md:w-56 bg-neutral-900 text-neutral-200 p-4 md:min-h-screen flex md:block gap-2 overflow-x-auto">
@@ -40,9 +50,12 @@ export default function Admin() {
         {msg && <p className="mb-4 text-sm bg-white border px-3 py-2" role="status">{msg}</p>}
         <Routes>
           <Route index element={<Dash rest={rest} />} />
-          <Route path="categorias" element={<Cats rest={rest} say={setMsg} />} />
-          <Route path="produtos" element={<Prods rest={rest} say={setMsg} />} />
-          <Route path="configuracoes" element={<Conf rest={rest} setRest={setRest} say={setMsg} />} />
+          <Route path="pedidos" element={<Orders rest={rest} say={say} />} />
+          <Route path="categorias" element={<Cats rest={rest} say={say} />} />
+          <Route path="produtos" element={<Prods rest={rest} say={say} />} />
+          <Route path="adicionais" element={<Addons rest={rest} say={say} />} />
+          <Route path="equipe" element={<Team rest={rest} say={say} />} />
+          <Route path="configuracoes" element={<Conf rest={rest} setRest={setRest} say={say} />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </main>

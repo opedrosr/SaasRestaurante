@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { detectAR, AR_MESSAGES } from '../lib/arSupport';
 import { calibrate, type Calibration } from '../lib/scale';
-import { arMessage, type ARStatus, type ARTracking } from '../lib/arGuide';
+import { isWebXRARSupported, prepareWebXRAR, startWebXRAR } from '../lib/webxrAR';
+import { openQuickLook } from '../lib/quicklook';
 import ARGuide from './ARGuide';
-
-// Ordem dos modos de AR. 'webxr' primeiro permite orientações na tela durante a AR no Android (Chrome).
-// Se a experiência no seu aparelho for pior que a do Scene Viewer, troque para "scene-viewer webxr quick-look".
-const AR_MODES = 'webxr scene-viewer quick-look';
 
 interface Props {
   glbUrl: string;
@@ -26,8 +23,6 @@ export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physica
   const [error, setError] = useState(false);
   const [calib, setCalib] = useState<Calibration | null>(null);
   const [guide, setGuide] = useState(false);
-  const [arStatus, setArStatus] = useState<ARStatus>('idle');
-  const [tracking, setTracking] = useState<ARTracking>('not-tracking');
   const [arFailed, setArFailed] = useState(false);
   const support = detectAR();
 
@@ -43,26 +38,31 @@ export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physica
       setCalib(c); onCalibrated?.(c);
     };
     const onErr = () => { setError(true); onError?.(); };
-    const onStatus = (e: any) => { const s = e.detail?.status as ARStatus; setArStatus(s); if (s === 'failed') setArFailed(true); };
-    const onTrack = (e: any) => setTracking(e.detail?.status === 'tracking' ? 'tracking' : 'not-tracking');
     el.addEventListener('load', onLoad); el.addEventListener('error', onErr);
-    el.addEventListener('ar-status', onStatus); el.addEventListener('ar-tracking', onTrack);
-    return () => {
-      el.removeEventListener('load', onLoad); el.removeEventListener('error', onErr);
-      el.removeEventListener('ar-status', onStatus); el.removeEventListener('ar-tracking', onTrack);
-    };
+    return () => { el.removeEventListener('load', onLoad); el.removeEventListener('error', onErr); };
   }, [ready, glbUrl, physicalCm.width, physicalCm.depth, physicalCm.height]);
+
+  // Ao abrir o guia, já carrega a AR própria (Android/Chrome) em segundo plano.
+  const openGuide = () => {
+    setGuide(true);
+    isWebXRARSupported().then(ok => { if (ok) prepareWebXRAR(glbUrl).catch(() => {}); });
+  };
 
   const startAR = async () => {
     setGuide(false); setArFailed(false); onARClick?.();
-    try { await ref.current?.activateAR(); } catch { setArFailed(true); }
+    try {
+      if (support === 'quick-look' && usdzUrl) { openQuickLook(usdzUrl, physicalCm.width); return; }
+      if (await isWebXRARSupported()) {
+        try { await startWebXRAR({ glbUrl, physicalCm }); return; } catch { /* cai para a AR nativa */ }
+      }
+      await ref.current?.activateAR();
+    } catch { setArFailed(true); }
   };
 
   if (error) return <p role="alert">Não foi possível carregar o modelo 3D deste produto.</p>;
   if (!ready) return <div aria-busy="true" className="animate-pulse aspect-square bg-neutral-800" />;
 
   const MV = 'model-viewer' as any;
-  const live = arMessage(arStatus, tracking, physicalCm.width);
   return (
     <div>
       <MV
@@ -77,19 +77,14 @@ export default function ProductModelViewer({ glbUrl, usdzUrl, posterUrl, physica
         exposure="1.1"
         environment-image="neutral"
         ar
-        ar-modes={AR_MODES}
+        ar-modes="scene-viewer quick-look"
         ar-scale="fixed"
         ar-placement="floor"
         style={{ width: '100%', height: '60vh' }}
       >
         <button slot="ar-button" style={{ display: 'none' }} aria-hidden="true" tabIndex={-1} />
-        {live && (
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: 24, textAlign: 'center', pointerEvents: 'none' }}>
-            <p style={{ display: 'inline-block', background: 'rgba(20,19,18,.88)', color: '#F2EDE4', padding: '10px 16px', fontSize: 14, maxWidth: '85%' }}>{live}</p>
-          </div>
-        )}
       </MV>
-      {showAR && support !== 'none' && <button className="btn w-full mt-3" onClick={() => setGuide(true)}>VER NA MINHA MESA</button>}
+      {showAR && support !== 'none' && <button className="btn w-full mt-3" onClick={openGuide}>VER NA MINHA MESA</button>}
       {showAR && support === 'none' && <p>{AR_MESSAGES.none}</p>}
       {arFailed && <p role="alert" className="text-sm text-gold mt-2">Não foi possível iniciar a realidade aumentada neste aparelho. A visualização 3D continua disponível.</p>}
       {guide && <ARGuide widthCm={physicalCm.width} heightCm={physicalCm.height} onStart={startAR} onClose={() => setGuide(false)} />}

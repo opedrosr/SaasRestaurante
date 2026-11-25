@@ -3,7 +3,7 @@ import type { CartLine } from './whatsapp';
 interface Ctx { lines: CartLine[]; add: (l: CartLine) => void; setQty: (i: number, q: number) => void; clear: () => void; open: boolean; setOpen: (b: boolean) => void }
 const C = createContext<Ctx>(null as any);
 export const useCart = () => useContext(C);
-const storageKey = () => 'cart:' + (location.pathname.split('/')[2] || 'default');
+const storageKey = () => 'cart2:' + (location.pathname.split('/')[2] || 'default');
 const readCart = (): CartLine[] => { try { return JSON.parse(localStorage.getItem(storageKey()) || '[]'); } catch { return []; } };
 
 export function CartProvider({ children }: { children: ReactNode }) {

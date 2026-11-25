@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { arMessage, closestRef, fmtCm } from './arGuide';
+import { arMessage, closestRef, fmtCm, distanceGuidance } from './arGuide';
 describe('arGuide', () => {
   it('escolhe a referência mais próxima', () => { expect(closestRef(13).cm).toBe(12); expect(closestRef(25).cm).toBe(26); });
   it('formata centímetros em pt-BR', () => expect(fmtCm(12.5)).toBe('12,5'));
@@ -8,5 +8,10 @@ describe('arGuide', () => {
     expect(arMessage('session-started', 'tracking', 13)).toContain('Toque na mesa');
     expect(arMessage('object-placed', 'tracking', 13)).toContain('13 cm');
     expect(arMessage('idle', 'tracking', 13)).toBeNull();
+  });
+  it('orienta a distância', () => {
+    expect(distanceGuidance(0.2, 13)).toContain('Afaste-se');
+    expect(distanceGuidance(1.5, 13)).toContain('Aproxime-se');
+    expect(distanceGuidance(0.6, 13)).toContain('Distância boa');
   });
 });

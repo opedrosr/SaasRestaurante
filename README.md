@@ -29,3 +29,15 @@ Após qualquer mudança em políticas (RLS), rode `supabase/tests/isolation.sql`
 - Aceitamos só **GLB** (autocontido). O painel valida o arquivo, calibra pela dimensão cadastrada e **grava a escala real dentro do GLB** ao salvar, para valer no Android (Scene Viewer) e no iPhone.
 - iPhone: se não houver USDZ, o model-viewer tenta gerar um a partir do GLB; se houver USDZ, ele deve estar em escala real. **Valide em iPhone e Android reais** antes de entregar a um cliente.
 - Otimização (faça antes do upload, no computador): `npx @gltf-transform/cli optimize entrada.glb saida.glb --compress meshopt --texture-compress webp`. Meta: abaixo de 5 MB por modelo.
+
+## iPhone (AR Quick Look)
+- Ao salvar um produto, o painel gera o USDZ a partir do GLB e envia junto. Produtos antigos: editar, reenviar o GLB e salvar.
+- No iPhone o AR abre com uma faixa de orientações (`public/ar-banner.html`). Texto fixo: o Safari não permite orientação ao vivo sobre a câmera.
+- A conversão automática não cobre todos os materiais; se falhar, o painel avisa e aceita o USDZ manual.
+
+## Etapa 4 (pedidos, equipe, domínio)
+1. Rode `supabase/migrations/0004_orders_team_domain.sql` no SQL Editor.
+2. Supabase > Authentication: em **URL Configuration** coloque a URL do site em *Site URL* e adicione `https://SEU-SITE/admin` em *Redirect URLs*. Mantenha **Confirm email** LIGADO (o convite depende disso). O e-mail padrão do Supabase tem limite baixo de envios: para uso real configure SMTP próprio.
+3. Vercel > Environment Variables: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` também são lidas pela função `api/share.js` (pré-visualização no WhatsApp).
+4. **Domínio próprio de um cliente:** Vercel > Domains > adicionar o domínio e configurar o DNS; depois `update restaurants set custom_domain = 'cardapio.cliente.com.br' where slug = 'slug-do-cliente';`. Defina `VITE_MAIN_HOSTS` com o(s) seu(s) domínio(s) principal(is).
+5. **Subdomínio por cliente:** com um domínio seu com wildcard na Vercel (`*.seudominio.com`), defina `VITE_ROOT_DOMAIN=seudominio.com`; `cliente.seudominio.com` abre o cardápio do slug `cliente`.

@@ -21,3 +21,11 @@ export function arMessage(status: ARStatus, tracking: ARTracking, widthCm: numbe
       : 'Aponte para a mesa e mova o celular devagar, em círculos, para encontrar a superfície.';
   return null;
 }
+
+/** Orientação de distância com base na distância real (em metros) entre a câmera e o item posicionado. */
+export function distanceGuidance(distM: number, widthCm: number): string {
+  const cm = Math.round(distM * 100);
+  if (distM < 0.35) return `Você está a ${cm} cm. Afaste-se um pouco para ver o hambúrguer inteiro ao lado dos seus objetos.`;
+  if (distM > 1.2) return `Você está a ${cm} cm. Aproxime-se, uns 50 a 80 cm, para comparar o tamanho com seus objetos.`;
+  return `Distância boa (${cm} cm). Largura real: ${fmtCm(widthCm)} cm. A régua vermelha e branca ao lado mede 10 cm: compare com um prato ou copo.`;
+}

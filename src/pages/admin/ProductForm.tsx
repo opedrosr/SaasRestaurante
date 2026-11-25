@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from 'react';
 import { supabase, pub } from '../../lib/supabase';
 import { L, MAX_MODEL, MAX_IMG } from './ui';
 import { validateGlb, bakeScale } from '../../lib/glb';
+import { glbToUsdz } from '../../lib/usdz';
 const Viewer = lazy(() => import('../../components/ProductModelViewer'));
 
 export function Form({ rest, cats, init, say, done }: any) {
@@ -13,6 +14,16 @@ export function Form({ rest, cats, init, say, done }: any) {
   const [photos, setPhotos] = useState<any[]>([]);
   const loadPhotos = async () => { if (!f.id) return; const { data } = await supabase.from('product_photos').select('*').eq('product_id', f.id).order('sort_order'); setPhotos(data || []); };
   useEffect(() => { loadPhotos(); }, []);
+  const [models, setModels] = useState<any[]>([]);
+  const loadModels = async () => { if (!f.id) return; const { data } = await supabase.from('product_models').select('*').eq('product_id', f.id).order('created_at', { ascending: false }); setModels(data || []); };
+  useEffect(() => { loadModels(); }, []);
+  const cur = models[0];
+  const setModelActive = async (on: boolean) => { await supabase.from('product_models').update({ is_active: on }).eq('id', cur.id); loadModels(); };
+  const dropModels = async (list: any[]) => {
+    const paths = list.flatMap(m => [m.glb_path, m.usdz_path]).filter(Boolean);
+    if (paths.length) await supabase.storage.from('models').remove(paths);
+    await supabase.from('product_models').delete().in('id', list.map(m => m.id)); };
+  const removeModel = async () => { if (!confirm('Remover o modelo 3D deste produto?')) return; await dropModels(models); say('Modelo removido.'); loadModels(); };
   const makePrimary = async (id: string) => {
     await supabase.from('product_photos').update({ is_primary: false }).eq('product_id', f.id);
     await supabase.from('product_photos').update({ is_primary: true }).eq('id', id); loadPhotos(); };
@@ -58,15 +69,20 @@ export function Form({ rest, cats, init, say, done }: any) {
         }
       }
 
+      let usdzWarn = false;
       if (glb) { const ts = Date.now(); const gp = `${rest.id}/${p.id}/${ts}.glb`;
         const original = await glb.arrayBuffer(); const factor = calib?.factor ?? 1;
         const finalBuf = Math.abs(factor - 1) > 0.001 ? bakeScale(original, factor) : original; // escala real gravada no arquivo
         const u1 = await supabase.storage.from('models').upload(gp, new Blob([finalBuf], { type: 'model/gltf-binary' }), { contentType: 'model/gltf-binary' }); if (u1.error) throw u1.error;
-        let up2: string | null = null; if (usdz) { up2 = `${rest.id}/${p.id}/${ts}.usdz`; const u2 = await supabase.storage.from('models').upload(up2, usdz); if (u2.error) throw u2.error; }
+        let up2: string | null = null;
+        let usdzFile: Blob | null = usdz;
+        if (!usdzFile) { try { usdzFile = new Blob([await glbToUsdz(finalBuf)], { type: 'model/vnd.usdz+zip' }); } catch { usdzWarn = true; } }
+        if (usdzFile) { up2 = `${rest.id}/${p.id}/${ts}.usdz`; const u2 = await supabase.storage.from('models').upload(up2, usdzFile, { contentType: 'model/vnd.usdz+zip' }); if (u2.error) throw u2.error; }
         await supabase.from('product_models').update({ is_active: false }).eq('product_id', p.id);
-        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: finalBuf.byteLength, scale_factor: factor, measured_width_m: calib?.measuredM.width ?? null, measured_depth_m: calib?.measuredM.depth ?? null, measured_height_m: calib?.measuredM.height ?? null, status: 'valid' });
-        if (ins.error) throw ins.error; }
-      say('Produto salvo.'); done();
+        const ins = await supabase.from('product_models').insert({ product_id: p.id, restaurant_id: rest.id, glb_path: gp, usdz_path: up2, file_size_bytes: finalBuf.byteLength, scale_factor: factor, measured_width_m: calib?.measuredM?.width ?? null, measured_depth_m: calib?.measuredM?.depth ?? null, measured_height_m: calib?.measuredM?.height ?? null, status: 'valid' });
+        if (ins.error) throw ins.error;
+        if (models.length) await dropModels(models).catch(() => {}); }
+      say(usdzWarn ? 'Produto salvo, mas o arquivo para iPhone (USDZ) não foi gerado. Envie um USDZ manualmente.' : 'Produto salvo.'); done();
     } catch (e: any) { say('Erro ao salvar: ' + (e.message || e)); } finally { setBusy(false); }
   };
 
@@ -85,7 +101,10 @@ export function Form({ rest, cats, init, say, done }: any) {
       <button className="text-red-600 underline" onClick={() => removePhoto(ph)}>Excluir</button></div>)}</div>}
     {img.length > 0 && <div className="flex gap-2">{img.map(i => <img key={i.name} src={URL.createObjectURL(i)} className="h-16 w-16 object-cover" alt="" />)}</div>}
     <fieldset className="border p-3 space-y-2"><legend className="text-sm font-medium">Modelo 3D</legend>
-      {f.model && !glb && <p className="text-xs text-neutral-600">Modelo atual: válido. Envie outro arquivo para substituir (os dados do produto são mantidos).</p>}
+      {cur && !glb && <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-700">
+        <span>Modelo atual: {cur.is_active ? 'ativo' : 'desativado'}. Envie outro arquivo para substituir.</span>
+        <button type="button" className="underline" onClick={() => setModelActive(!cur.is_active)}>{cur.is_active ? 'Desativar' : 'Reativar'}</button>
+        <button type="button" className="text-red-600 underline" onClick={removeModel}>Remover</button></div>}
       <L t="GLB (máx. 15 MB). A escala real é gravada no arquivo ao salvar."><input type="file" accept=".glb" onChange={e => pickGlb(e.target.files?.[0])} /></L>
       <L t="USDZ para iPhone (opcional, precisa estar em escala real)"><input type="file" accept=".usdz" onChange={e => setUsdz(e.target.files?.[0] || null)} /></L>
       {glb && hasDims && <Suspense fallback={<p>Carregando pré-visualização…</p>}>
