@@ -89,7 +89,7 @@ export function Form({ rest, cats, init, say, done }: any) {
       <L t="GLB (máx. 15 MB). A escala real é gravada no arquivo ao salvar."><input type="file" accept=".glb" onChange={e => pickGlb(e.target.files?.[0])} /></L>
       <L t="USDZ para iPhone (opcional, precisa estar em escala real)"><input type="file" accept=".usdz" onChange={e => setUsdz(e.target.files?.[0] || null)} /></L>
       {glb && hasDims && <Suspense fallback={<p>Carregando pré-visualização…</p>}>
-        <Viewer glbUrl={glbUrl} physicalCm={{ width: n(f.fw), depth: n(f.fd), height: n(f.fh) }} onCalibrated={c => { setCalib(c); setLoaded(true); }} onError={() => setLoaded(false)} /></Suspense>}
+        <Viewer showAR={false} glbUrl={glbUrl} physicalCm={{ width: n(f.fw), depth: n(f.fd), height: n(f.fh) }} onCalibrated={c => { setCalib(c); setLoaded(true); }} onError={() => setLoaded(false)} /></Suspense>}
       {glb && !hasDims && <p className="text-sm text-amber-700">Preencha as dimensões do alimento para pré-visualizar com escala real.</p>}
       {calib && <p className="text-xs">Fator de escala calibrado: {calib.factor.toFixed(4)}× — modelo carregou corretamente.</p>}
     </fieldset>
