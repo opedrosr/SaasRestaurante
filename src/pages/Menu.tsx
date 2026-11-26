@@ -8,47 +8,66 @@ import { useCart } from '../lib/cart';
 import ProductSheet from '../components/ProductSheet';
 import CartDrawer from '../components/CartDrawer';
 
-const iconFor = (name: string) => {
-  const s = name.toLowerCase();
-  if (/combo/.test(s)) return '🍱';
-  if (/burger|hamb|smash/.test(s)) return '🍔';
-  if (/acompanh|batata|fritas/.test(s)) return '🍟';
-  if (/bebida|shake|suco|refri/.test(s)) return '🥤';
-  if (/sobremesa|doce|brownie/.test(s)) return '🍰';
-  if (/pizza/.test(s)) return '🍕';
-  return '🍽️';
-};
+const Chevron = ({ dir }: { dir: 'l' | 'r' }) => (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d={dir === 'l' ? 'M15 5l-7 7 7 7' : 'M9 5l7 7-7 7'} />
+  </svg>
+);
 
-function Card({ p, onOpen }: { p: any; onOpen: (p: any) => void }) {
+const BagAdd = () => (
+  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M6 8h12l1 12H5L6 8z" /><path d="M9 8V7a3 3 0 016 0v1" /><path d="M12 12.5v4M10 14.5h4" />
+  </svg>
+);
+
+function Card({ p, onOpen, onPrev, onNext }: { p: any; onOpen: (p: any) => void; onPrev: () => void; onNext: () => void }) {
+  const stop = (fn: () => void) => (e: React.SyntheticEvent) => { e.stopPropagation(); fn(); };
+  const nav = 'grid h-9 w-9 place-items-center rounded-full transition active:scale-90 hover:bg-white/15';
   return (
-    <button onClick={() => onOpen(p)} className="glass snap-start shrink-0 w-[46%] rounded-[24px] p-2.5 text-left transition active:scale-[.98] sm:w-[31%] md:w-[24%]">
-      <div className="relative aspect-[5/4] overflow-hidden rounded-[18px] bg-white/15">
-        <img loading="lazy" src={photoOf(p)} alt="" className="h-full w-full object-cover" />
-        {has3d(p) && <span className="absolute left-2 top-2 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-cobalt">3D · AR</span>}
+    <div role="button" tabIndex={0} onClick={() => onOpen(p)} onKeyDown={e => { if (e.key === 'Enter') onOpen(p); }}
+      className="glass relative aspect-[3/4.6] w-[70%] shrink-0 cursor-pointer snap-center rounded-[36px] text-left transition active:scale-[.985] sm:w-[46%] md:w-[31%]">
+      {/* topo: seta, botão central, seta */}
+      <div className="absolute inset-x-4 top-4 flex items-center justify-between">
+        <button type="button" aria-label="Anterior" className={nav} onClick={stop(onPrev)}><Chevron dir="l" /></button>
+        <span className="rounded-full border-2 border-white px-5 py-1.5 font-display text-base font-bold uppercase tracking-wider">
+          {p.is_available ? 'Pedir agora' : 'Indisponível'}
+        </span>
+        <button type="button" aria-label="Próximo" className={nav} onClick={stop(onNext)}><Chevron dir="r" /></button>
       </div>
-      <h3 className="mt-2 font-display text-lg font-bold uppercase leading-none tracking-wide">{p.name}</h3>
-      <div className="mt-1.5 flex items-center justify-between">
-        <b className="text-sm">{brl(p.price_cents)}</b>
-        <span className={`grid h-7 w-7 place-items-center rounded-lg text-lg font-bold leading-none text-navy ${p.is_available ? 'bg-gradient-to-b from-brand-light to-brand-dark' : 'bg-white/20'}`}>{p.is_available ? '+' : '–'}</span>
+
+      {/* prato: vaza das bordas do vidro */}
+      <div className="pointer-events-none absolute inset-x-[-10%] top-[17%] h-[46%]">
+        <img loading="lazy" src={photoOf(p)} alt={p.name} className="h-full w-full object-contain drop-shadow-[0_22px_22px_rgba(0,10,70,.45)]" />
       </div>
-    </button>
+
+      {/* base: nome, descrição, preço e sacola */}
+      <div className="absolute inset-x-5 bottom-5 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate font-display text-3xl font-extrabold uppercase leading-none tracking-tight">{p.name}</h3>
+          {p.description && <p className="mt-1 truncate text-sm text-white/75">{p.description}</p>}
+          <div className="mt-2 flex items-center gap-2">
+            <b className="text-xl">{brl(p.price_cents)}</b>
+            {has3d(p) && <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-cobalt">3D · AR</span>}
+          </div>
+        </div>
+        <span className={`shrink-0 pb-0.5 ${p.is_available ? 'text-white' : 'text-white/40'}`}><BagAdd /></span>
+      </div>
+    </div>
   );
 }
 
 function Row({ items, onOpen }: { items: any[]; onOpen: (p: any) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const go = (d: number) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.8, behavior: 'smooth' });
-  const arrow = 'absolute top-1/2 z-10 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full bg-white text-xl text-cobalt shadow-lg md:grid';
+  const go = (d: number) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.7, behavior: 'smooth' });
   return (
-    <div className="relative">
-      <button aria-label="Anterior" onClick={() => go(-1)} className={arrow + ' -left-5'}>‹</button>
-      <div ref={ref} className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map(p => <Card key={p.id} p={p} onOpen={onOpen} />)}
-      </div>
-      <button aria-label="Próximo" onClick={() => go(1)} className={arrow + ' -right-5'}>›</button>
+    <div ref={ref} className="-mx-5 flex snap-x snap-mandatory gap-8 overflow-x-auto scroll-smooth px-8 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:-mx-8">
+      {items.map(p => <Card key={p.id} p={p} onOpen={onOpen} onPrev={() => go(-1)} onNext={() => go(1)} />)}
     </div>
   );
 }
+
+/* recorte do hambúrguer real (coloque o arquivo em /public) */
+const HERO_BURGER = '/burger-cheddar.png';
 
 export default function Menu({ slug: slugProp }: { slug?: string }) {
   const params = useParams(); const slug = slugProp ?? params.slug;
@@ -84,13 +103,12 @@ export default function Menu({ slug: slugProp }: { slug?: string }) {
   const featured = prods.find((p: any) => p.is_featured) || prods[0];
   const term = q.trim().toLowerCase();
   const list = prods.filter((p: any) => (cat === 'all' || p.category_id === cat) && (!term || `${p.name} ${p.description || ''}`.toLowerCase().includes(term)));
-  const rows: any[][] = []; for (let i = 0; i < list.length; i += 4) rows.push(list.slice(i, i + 4));
-  const shown = more || term ? rows : rows.slice(0, 2);
+  const rows: any[][] = []; for (let i = 0; i < list.length; i += 6) rows.push(list.slice(i, i + 6));
+  const shown = more || term ? rows : rows.slice(0, 1);
   const [w1, ...restWords] = String(r.name).trim().split(/\s+/); const w2 = restWords.join(' ');
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const food = featured?.product_dimensions?.find((d: any) => d.kind === 'food');
   const fWords = featured ? String(featured.name).trim().split(/\s+/) : []; const fLast = fWords.length > 1 ? fWords.pop() : '';
-  const word = 'font-display font-extrabold uppercase leading-[.82] tracking-tight text-[clamp(56px,18vw,150px)]';
 
   return (
     <main className="pb-28" style={brandVars(brandPrimary)}>
@@ -103,15 +121,17 @@ export default function Menu({ slug: slugProp }: { slug?: string }) {
           </div>
         </nav>
         {featured && (
-          <div className="relative mx-auto mt-8 grid max-w-5xl items-center md:grid-cols-[1fr_auto_1fr]">
-            <h1 className={word + ' relative z-10 -mb-5 text-left md:mb-0'}>{w1}</h1>
-            <button onClick={() => openProduct(featured)} aria-label={featured.name} className="glass mx-auto h-64 w-64 overflow-hidden rounded-[44px] p-1.5 md:h-80 md:w-80">
-              <img src={photoOf(featured)} alt="" className="h-full w-full rounded-[38px] object-cover" />
-            </button>
-            <div className="relative z-10 -mt-5 text-right md:mt-0">
-              {w2 && <h1 className={word + ' text-brand'}>{w2}</h1>}
-              <p className="mt-1 font-script text-2xl text-white">{r.tagline || 'Bem-vindo'}</p>
-              {r.description && <p className="mt-2 text-xs text-white/55">{r.description}</p>}
+          <div className="mx-auto mt-10" style={{ ['--w' as any]: 'min(34vw, 22rem)' }}>
+            <div className="relative mx-auto" style={{ width: 'calc(var(--w) * 2.85)', maxWidth: '100%', height: 'calc(var(--w) * 0.86)' }}>
+              <button onClick={() => openProduct(featured)} aria-label={featured.name} className="absolute z-10" style={{ left: 'calc(var(--w) * .95)', top: 0, width: 'var(--w)' }}>
+                <img src={HERO_BURGER} onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = photoOf(featured); }} alt={featured.name} className="block w-full drop-shadow-[0_22px_22px_rgba(0,10,70,.5)]" />
+              </button>
+              <h1 className="pointer-events-none absolute z-20 whitespace-nowrap font-display font-extrabold uppercase leading-[.8] tracking-tight text-white" style={{ left: 0, top: 'calc(var(--w) * .03)', fontSize: 'calc(var(--w) * .29)' }}>{w1}</h1>
+              {w2 && <h1 className="pointer-events-none absolute z-20 whitespace-nowrap font-display font-extrabold uppercase leading-[.8] tracking-tight text-white" style={{ left: 'calc(var(--w) * 1.54)', top: 'calc(var(--w) * .52)', fontSize: 'calc(var(--w) * .29)' }}>{w2}</h1>}
+            </div>
+            <div className="mt-6 text-center">
+              <p className="font-script text-2xl text-white">{r.tagline || 'Bem-vindo'}</p>
+              {r.description && <p className="mx-auto mt-2 max-w-md text-xs text-white/55">{r.description}</p>}
               {status && <p className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${status.open ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>{status.label}</p>}
             </div>
           </div>
@@ -129,9 +149,8 @@ export default function Menu({ slug: slugProp }: { slug?: string }) {
         <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none]">
           {[{ id: 'all', name: 'Tudo' }, ...cats].map((c: any) => (
             <button key={c.id} onClick={() => { setCat(c.id); setMore(false); }}
-              className={`flex w-[76px] shrink-0 flex-col items-center gap-1 rounded-2xl border px-2 py-2.5 text-[11px] font-medium transition ${cat === c.id ? 'border-brand bg-brand text-navy' : 'border-white/30 bg-white/10'}`}>
-              <span className="text-2xl leading-none">{c.id === 'all' ? '✨' : iconFor(c.name)}</span>
-              <span className="w-full truncate text-center">{c.name}</span>
+              className={`shrink-0 whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 ${cat === c.id ? 'glass-chip-on' : 'glass-chip'}`}>
+              {c.name}
             </button>
           ))}
         </div>
@@ -139,7 +158,7 @@ export default function Menu({ slug: slugProp }: { slug?: string }) {
           {shown.map((row, i) => <Row key={i} items={row} onOpen={openProduct} />)}
           {list.length === 0 && <p className="py-8 text-white/60">Nenhum produto encontrado.</p>}
         </div>
-        {!more && !term && rows.length > 2 && <button className="btn mx-auto mt-6 flex" onClick={() => setMore(true)}>Mais</button>}
+        {!more && !term && rows.length > 1 && <button className="btn mx-auto mt-6 flex" onClick={() => setMore(true)}>Mais</button>}
       </section>
 
       {featured && (
